@@ -1207,6 +1207,28 @@ const agentResources = [
     font-weight: 700;
   }
 
+  .snapshot-list :global(.snapshot-entry-date) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .snapshot-list :global(.snapshot-badge-latest) {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    background: rgb(8 122 92 / 12%);
+    color: var(--pounamu-dark);
+    font-family: var(--font-utility);
+    font-size: var(--text-micro);
+    font-weight: 750;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
   .snapshot-list :global(.snapshot-entry-facts) { display: grid; }
   .snapshot-list :global(.snapshot-entry-facts strong) { font-size: var(--text-sm); }
   .snapshot-list :global(.snapshot-entry-facts span) { color: var(--slate); font-size: var(--text-micro); }

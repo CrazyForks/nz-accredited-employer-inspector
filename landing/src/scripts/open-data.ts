@@ -76,14 +76,29 @@ function renderSnapshot(
   snapshot: SnapshotEntry,
   catalogUrl: URL,
   detailed: boolean,
+  isLatest = false,
 ): HTMLLIElement {
   const item = document.createElement("li");
   item.className = detailed ? "snapshot-entry snapshot-entry-detailed" : "snapshot-entry";
+  if (isLatest) {
+    item.classList.add("snapshot-entry-latest");
+  }
+
+  const dateWrap = document.createElement("div");
+  dateWrap.className = "snapshot-entry-date";
 
   const date = document.createElement("time");
   date.dateTime = snapshot.snapshot_date;
   date.textContent = formatDate(snapshot.snapshot_date);
-  item.append(date);
+  dateWrap.append(date);
+
+  if (isLatest) {
+    const badge = document.createElement("span");
+    badge.className = "snapshot-badge-latest";
+    badge.textContent = "Latest";
+    dateWrap.append(badge);
+  }
+  item.append(dateWrap);
 
   const facts = document.createElement("div");
   facts.className = "snapshot-entry-facts";
@@ -124,13 +139,102 @@ async function hydrateSnapshotList(list: HTMLElement): Promise<void> {
       throw new Error(`Catalog returned ${response.status}.`);
     }
     const catalog = parseCatalog(await response.json());
+    const isDetailed = list.dataset.detailed === "true";
+    const isCollapsible = list.dataset.collapsible === "true";
     const requestedLimit = Number.parseInt(list.dataset.limit ?? "", 10);
-    const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
-      ? requestedLimit
-      : catalog.snapshots.length;
-    const snapshots = catalog.snapshots.slice(0, limit);
-    list.replaceChildren(...snapshots.map((snapshot) =>
-      renderSnapshot(snapshot, catalogUrl, list.dataset.detailed === "true")
+    const initialLimit = Number.parseInt(list.dataset.initialLimit ?? "", 10);
+
+    // Hard limit: only render fixed number of items (e.g. index page data-limit="3")
+    if (Number.isSafeInteger(requestedLimit) && requestedLimit > 0) {
+      const snapshots = catalog.snapshots.slice(0, requestedLimit);
+      list.replaceChildren(...snapshots.map((snapshot, index) =>
+        renderSnapshot(snapshot, catalogUrl, isDetailed, index === 0)
+      ));
+      if (status !== null && status !== undefined) {
+        status.textContent = snapshots.length === 0
+          ? "The first generated snapshot has not been published yet."
+          : `${snapshots.length === 1 ? "One snapshot" : `${snapshots.length} snapshots`} shown.`;
+      }
+      return;
+    }
+
+    const totalCount = catalog.snapshots.length;
+    const defaultLimit = Number.isSafeInteger(initialLimit) && initialLimit > 0 ? initialLimit : 5;
+
+    // Collapsible list: initial limit with Show all / Show fewer toggle
+    if (isCollapsible && totalCount > defaultLimit) {
+      let isExpanded = false;
+
+      let footer = list.parentElement?.querySelector<HTMLElement>("[data-open-data-footer]");
+      if (footer === null || footer === undefined) {
+        footer = document.createElement("div");
+        footer.className = "register-footer";
+        footer.dataset.openDataFooter = "";
+        list.after(footer);
+      }
+
+      const updateView = (): void => {
+        const visibleSnapshots = isExpanded
+          ? catalog.snapshots
+          : catalog.snapshots.slice(0, defaultLimit);
+
+        list.replaceChildren(...visibleSnapshots.map((snapshot, index) =>
+          renderSnapshot(snapshot, catalogUrl, isDetailed, index === 0)
+        ));
+
+        if (status !== null && status !== undefined) {
+          status.textContent = isExpanded
+            ? `All ${totalCount} snapshots shown.`
+            : `Showing latest ${defaultLimit} of ${totalCount} snapshots.`;
+        }
+
+        if (footer !== null && footer !== undefined) {
+          footer.replaceChildren();
+
+          const summary = document.createElement("span");
+          summary.className = "register-summary";
+          summary.textContent = isExpanded
+            ? `Showing all ${totalCount} snapshots`
+            : `Showing ${defaultLimit} of ${totalCount} snapshots`;
+          footer.append(summary);
+
+          const toggleButton = document.createElement("button");
+          toggleButton.type = "button";
+          toggleButton.className = "register-toggle";
+          toggleButton.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+
+          const textSpan = document.createElement("span");
+          textSpan.textContent = isExpanded
+            ? `Show fewer (${defaultLimit})`
+            : `Show all ${totalCount} snapshots`;
+
+          const iconSpan = document.createElement("span");
+          iconSpan.className = "toggle-icon";
+          iconSpan.setAttribute("aria-hidden", "true");
+          iconSpan.textContent = isExpanded ? "↑" : "↓";
+
+          toggleButton.append(textSpan, iconSpan);
+
+          toggleButton.addEventListener("click", () => {
+            isExpanded = !isExpanded;
+            updateView();
+            if (!isExpanded) {
+              list.parentElement?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+          });
+
+          footer.append(toggleButton);
+        }
+      };
+
+      updateView();
+      return;
+    }
+
+    // Default: render all snapshots
+    const snapshots = catalog.snapshots;
+    list.replaceChildren(...snapshots.map((snapshot, index) =>
+      renderSnapshot(snapshot, catalogUrl, isDetailed, index === 0)
     ));
     if (status !== null && status !== undefined) {
       status.textContent = snapshots.length === 0
