@@ -15,3 +15,5 @@ worker-configuration.d.ts
 .env
 .env.*
 !.env.example
+docs/articles/
+docs/marketing-assets/
